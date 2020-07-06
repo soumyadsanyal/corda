@@ -245,32 +245,20 @@ internal class SingleThreadedStateMachineManager(
         val killFlowResult = innerState.withLock {
             val flow = flows[id]
             if (flow != null) {
-                // can the state actually ever be null at this point?
-                // removing it would tidy up the code a bit
-                val state = flow.fiber.transientState
-                if (state != null) {
-                    flow.fiber.withFlowLock {
-                        logger.info("Killing flow $id known to this node.")
-                        // The checkpoint and soft locks are removed here instead of relying on the processing of the next event after setting
-                        // the killed flag. This is to ensure a flow can be removed from the database, even if it is stuck in a infinite loop.
-                        database.transaction {
-                            checkpointStorage.removeCheckpoint(id)
-                            serviceHub.vaultService.softLockRelease(id.uuid)
-                        }
-
-                        unfinishedFibers.countDown()
-
-                        transientState!!.value.isKilled = true
-                        scheduleEvent(Event.DoRemainingWork)
-                        true
-                    }
-                } else {
+                flow.fiber.withFlowLock {
+                    logger.info("Killing flow $id known to this node.")
+                    // The checkpoint and soft locks are removed here instead of relying on the processing of the next event after setting
+                    // the killed flag. This is to ensure a flow can be removed from the database, even if it is stuck in a infinite loop.
                     database.transaction {
                         checkpointStorage.removeCheckpoint(id)
                         serviceHub.vaultService.softLockRelease(id.uuid)
                     }
-                    logger.info("Flow $id has not been initialised correctly and cannot be killed")
-                    false
+
+                    unfinishedFibers.countDown()
+
+                    transientState!!.value.isKilled = true
+                    scheduleEvent(Event.DoRemainingWork)
+                    true
                 }
             } else {
                 // It may be that the id refers to a checkpoint that couldn't be deserialised into a flow, so we delete it if it exists.
