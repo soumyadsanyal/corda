@@ -58,6 +58,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.withLock
 import kotlin.reflect.KProperty1
 
 class FlowPermissionException(message: String) : FlowException(message)
@@ -135,27 +136,41 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
 
     internal val softLockedStates = mutableSetOf<StateRef>()
 
+    internal inline fun <RESULT> withFlowLock(block: FlowStateMachineImpl<R>.() -> RESULT): RESULT {
+        return transientState!!.value.lock.withLock { block(this) }
+    }
+
     /**
      * Processes an event by creating the associated transition and executing it using the given executor.
      * Try to avoid using this directly, instead use [processEventsUntilFlowIsResumed] or [processEventImmediately]
      * instead.
      */
     @Suspendable
+    // can we remove transition executor from the arguments?
+    // is it just to save needing to retrieve it from the transient state, if so, we should do the same for action executor + state machine
     private fun processEvent(transitionExecutor: TransitionExecutor, event: Event): FlowContinuation {
-        setLoggingContext()
-        val stateMachine = getTransientField(TransientValues::stateMachine)
-        val oldState = transientState!!.value
-        val actionExecutor = getTransientField(TransientValues::actionExecutor)
-        val transition = stateMachine.transition(event, oldState)
-        val (continuation, newState) = transitionExecutor.executeTransition(this, oldState, event, transition, actionExecutor)
-        // Ensure that the next state that is being written to the transient state maintains the [isKilled] flag
-        // This condition can be met if a flow is killed during [TransitionExecutor.executeTransition]
-        if (oldState.isKilled && !newState.isKilled) {
-            newState.isKilled = true
+        return withFlowLock {
+            setLoggingContext()
+            val stateMachine = getTransientField(TransientValues::stateMachine)
+            val actionExecutor = getTransientField(TransientValues::actionExecutor)
+            val oldState = transientState!!.value
+            val transition = stateMachine.transition(event, oldState)
+            val (continuation, newState) = transitionExecutor.executeTransition(
+                this,
+                oldState,
+                event,
+                transition,
+                actionExecutor
+            )
+            // Ensure that the next state that is being written to the transient state maintains the [isKilled] flag
+            // This condition can be met if a flow is killed during [TransitionExecutor.executeTransition]
+            if (oldState.isKilled && !newState.isKilled) {
+                newState.isKilled = true
+            }
+            transientState = TransientReference(newState)
+            setLoggingContext()
+            continuation
         }
-        transientState = TransientReference(newState)
-        setLoggingContext()
-        return continuation
     }
 
     /**

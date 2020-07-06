@@ -245,23 +245,30 @@ internal class SingleThreadedStateMachineManager(
         val killFlowResult = innerState.withLock {
             val flow = flows[id]
             if (flow != null) {
-                logger.info("Killing flow $id known to this node.")
-                // The checkpoint and soft locks are removed here instead of relying on the processing of the next event after setting
-                // the killed flag. This is to ensure a flow can be removed from the database, even if it is stuck in a infinite loop.
-                database.transaction {
-                    checkpointStorage.removeCheckpoint(id)
-                    serviceHub.vaultService.softLockRelease(id.uuid)
-                }
-                // the same code is NOT done in remove flow when an error occurs
-                // what is the point of this latch?
-                unfinishedFibers.countDown()
-
+                // can the state actually ever be null at this point?
+                // removing it would tidy up the code a bit
                 val state = flow.fiber.transientState
-                return@withLock if (state != null) {
-                    state.value.isKilled = true
-                    flow.fiber.scheduleEvent(Event.DoRemainingWork)
-                    true
+                if (state != null) {
+                    flow.fiber.withFlowLock {
+                        logger.info("Killing flow $id known to this node.")
+                        // The checkpoint and soft locks are removed here instead of relying on the processing of the next event after setting
+                        // the killed flag. This is to ensure a flow can be removed from the database, even if it is stuck in a infinite loop.
+                        database.transaction {
+                            checkpointStorage.removeCheckpoint(id)
+                            serviceHub.vaultService.softLockRelease(id.uuid)
+                        }
+
+                        unfinishedFibers.countDown()
+
+                        transientState!!.value.isKilled = true
+                        scheduleEvent(Event.DoRemainingWork)
+                        true
+                    }
                 } else {
+                    database.transaction {
+                        checkpointStorage.removeCheckpoint(id)
+                        serviceHub.vaultService.softLockRelease(id.uuid)
+                    }
                     logger.info("Flow $id has not been initialised correctly and cannot be killed")
                     false
                 }
@@ -270,11 +277,8 @@ internal class SingleThreadedStateMachineManager(
                 database.transaction { checkpointStorage.removeCheckpoint(id) }
             }
         }
-        return if (killFlowResult) {
-            true
-        } else {
-            flowHospital.dropSessionInit(id)
-        }
+
+        return killFlowResult || flowHospital.dropSessionInit(id)
     }
 
     private fun markAllFlowsAsPaused() {

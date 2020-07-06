@@ -24,6 +24,7 @@ import net.corda.node.utilities.isEnabledTimedFlow
 import net.corda.nodeapi.internal.persistence.CordaPersistence
 import org.apache.activemq.artemis.utils.ReusableLatch
 import java.security.SecureRandom
+import java.util.concurrent.locks.ReentrantLock
 
 class Flow<A>(val fiber: FlowStateMachineImpl<A>, val resultFuture: OpenFuture<Any?>)
 
@@ -186,6 +187,8 @@ class FlowCreator(
             isRemoved = false,
             isKilled = false,
             flowLogic = fiber.logic,
-            senderUUID = senderUUID)
+            senderUUID = senderUUID,
+            lock = ReentrantLock()
+        )
     }
 }

@@ -17,6 +17,7 @@ import net.corda.core.utilities.Try
 import net.corda.node.services.messaging.DeduplicationHandler
 import java.time.Instant
 import java.util.concurrent.Future
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * The state of the state machine, capturing the state of a flow. It consists of two parts, an *immutable* part that is
@@ -54,7 +55,8 @@ data class StateMachineState(
     val isRemoved: Boolean,
     @Volatile
     var isKilled: Boolean,
-    val senderUUID: String?
+    val senderUUID: String?,
+    val lock: ReentrantLock
 )
 
 /**
