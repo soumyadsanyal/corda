@@ -138,6 +138,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
 
     internal inline fun <RESULT> withFlowLock(block: FlowStateMachineImpl<R>.() -> RESULT): RESULT {
         return transientState!!.value.lock.withLock { block(this) }
+//        return block(this)
     }
 
     /**
@@ -162,11 +163,6 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
                 transition,
                 actionExecutor
             )
-            // Ensure that the next state that is being written to the transient state maintains the [isKilled] flag
-            // This condition can be met if a flow is killed during [TransitionExecutor.executeTransition]
-            if (oldState.isKilled && !newState.isKilled) {
-                newState.isKilled = true
-            }
             transientState = TransientReference(newState)
             setLoggingContext()
             continuation
