@@ -37,8 +37,7 @@ import java.util.concurrent.locks.ReentrantLock
  * @param isRemoved true if the flow has been removed from the state machine manager. This is used to avoid any further
  *   work.
  * @param isKilled true if the flow has been marked as killed. This is used to cause a flow to move to a killed flow transition no matter
- * what event it is set to process next. [isKilled] is a `var` and set as [Volatile] to prevent concurrency errors that can occur if a flow
- * is killed during the middle of a state transition.
+ * what event it is set to process next.
  * @param senderUUID the identifier of the sending state machine or null if this flow is resumed from a checkpoint so that it does not participate in de-duplication high-water-marking.
  */
 // TODO perhaps add a read-only environment to the state machine for things that don't change over time?
@@ -53,8 +52,7 @@ data class StateMachineState(
     val isAnyCheckpointPersisted: Boolean,
     val isStartIdempotent: Boolean,
     val isRemoved: Boolean,
-    @Volatile
-    var isKilled: Boolean,
+    val isKilled: Boolean,
     val senderUUID: String?,
     val lock: ReentrantLock
 )

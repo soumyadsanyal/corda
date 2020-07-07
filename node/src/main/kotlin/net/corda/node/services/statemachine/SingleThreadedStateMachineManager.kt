@@ -256,7 +256,7 @@ internal class SingleThreadedStateMachineManager(
 
                     unfinishedFibers.countDown()
 
-                    transientState!!.value.isKilled = true
+                    transientState = TransientReference(transientState!!.value.copy(isKilled = true))
                     scheduleEvent(Event.DoRemainingWork)
                     true
                 }
