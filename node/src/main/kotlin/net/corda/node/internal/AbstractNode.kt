@@ -178,8 +178,8 @@ import rx.Scheduler
 import java.io.IOException
 import java.lang.reflect.InvocationTargetException
 import java.nio.file.Path
-import java.security.KeyPair
 import java.security.KeyStoreException
+import java.security.PublicKey
 import java.security.cert.X509Certificate
 import java.sql.Connection
 import java.sql.Savepoint
@@ -608,8 +608,8 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
     }
 
     private fun updateNodeInfo(identity: PartyAndCertificate,
-                               identityKeyPairs: Set<KeyPair>,
-                               publish: Boolean): Triple<MutableSet<KeyPair>, NodeInfoAndSigned, PartyAndCertificate?> {
+                               identityKeyPairs: Set<Pair<PublicKey, String>>,
+                               publish: Boolean): Triple<Set<Pair<PublicKey, String>>, NodeInfoAndSigned, PartyAndCertificate?> {
         val keyPairs = identityKeyPairs.toMutableSet()
 
         val myNotaryIdentity = configuration.notary?.let {
@@ -656,8 +656,8 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         }
 
         val nodeInfoAndSigned = NodeInfoAndSigned(nodeInfo) { publicKey, serialised ->
-            val privateKey = keyPairs.single { it.public == publicKey }.private
-            DigitalSignature(cryptoService.sign((privateKey as AliasPrivateKey).alias, serialised.bytes))
+            val alias = keyPairs.single { it.first == publicKey }.second
+            DigitalSignature(cryptoService.sign(alias, serialised.bytes))
         }
 
         // Write the node-info file even if nothing's changed, just in case the file has been deleted.
@@ -1033,7 +1033,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
      *
      * TODO: Estimate security impact of using old key without certificate validation.
      */
-    private fun obtainIdentity(): Pair<PartyAndCertificate, Set<KeyPair>> {
+    private fun obtainIdentity(): Pair<PartyAndCertificate, Set<Pair<PublicKey, String>>> {
         var signingCertificateStore = configuration.signingCertificateStore.get()
         val aliases = signingCertificateStore.aliases()
                 .filter { it.startsWith(NODE_IDENTITY_KEY_ALIAS) }.sortedBy { it }
@@ -1076,7 +1076,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         }
 
         val certPath = X509Utilities.buildCertPath(certificates)
-        val keyPairs = aliases.map { KeyPair(cryptoService.getPublicKey(it), AliasPrivateKey(it)) }.toSet()
+        val keyPairs = aliases.map { cryptoService.getPublicKey(it)!! to it }.toSet()
         return Pair(PartyAndCertificate(certPath), keyPairs)
     }
 
@@ -1093,7 +1093,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
      * cluster identity that all worker nodes share. In the case of a simple single notary, this loads the notary service identity
      * that is generated during initial registration and is used to sign notarisation requests.
      * */
-    private fun loadNotaryServiceIdentity(serviceLegalName: CordaX500Name): Pair<PartyAndCertificate, KeyPair> {
+    private fun loadNotaryServiceIdentity(serviceLegalName: CordaX500Name): Pair<PartyAndCertificate, Pair<PublicKey, String>> {
         val privateKeyAlias = "$DISTRIBUTED_NOTARY_KEY_ALIAS"
         val compositeKeyAlias = "$DISTRIBUTED_NOTARY_COMPOSITE_KEY_ALIAS"
 
@@ -1125,10 +1125,10 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
     }
 
     // Method to create a Pair<PartyAndCertificate, KeyPair>, where KeyPair uses an AliasPrivateKey.
-    private fun getPartyAndCertificatePlusAliasKeyPair(certificates: List<X509Certificate>, privateKeyAlias: String): Pair<PartyAndCertificate, KeyPair> {
+    private fun getPartyAndCertificatePlusAliasKeyPair(certificates: List<X509Certificate>, privateKeyAlias: String): Pair<PartyAndCertificate, Pair<PublicKey, String>> {
         val certPath = X509Utilities.buildCertPath(certificates)
-        val keyPair = KeyPair(cryptoService.getPublicKey(privateKeyAlias), AliasPrivateKey(privateKeyAlias))
-        return Pair(PartyAndCertificate(certPath), keyPair)
+        val keyAndAlias = cryptoService.getPublicKey(privateKeyAlias)!! to privateKeyAlias
+        return Pair(PartyAndCertificate(certPath), keyAndAlias)
     }
 
     private fun createAndStoreLegalIdentity(alias: String): PartyAndCertificate {
