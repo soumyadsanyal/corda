@@ -22,7 +22,7 @@ pipeline {
 
     post {
         always {
-            junit testResults: '**/build/test-results-xml/**/*.xml', keepLongStdio: true
+            junit testResults: '**/build/test-results/**/*.xml', keepLongStdio: true, allowEmptyResults: true
         }
         cleanup {
             deleteDir() /* clean up our workspace */
