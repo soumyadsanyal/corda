@@ -1,4 +1,4 @@
-package net.corda.bn.flows
+package net.corda.bn.services
 
 import net.corda.bn.schemas.GroupStateSchemaV1
 import net.corda.bn.schemas.MembershipStateSchemaV1
@@ -22,7 +22,7 @@ import net.corda.core.serialization.SingletonSerializeAsToken
  * Each method querying vault for Business Network information must be included here.
  */
 @CordaService
-class DatabaseService(private val serviceHub: ServiceHub) : SingletonSerializeAsToken() {
+class VaultBusinessNetworkService(private val serviceHub: ServiceHub) : SingletonSerializeAsToken() {
 
     /**
      * Checks whether Business Network with [networkId] ID exists.

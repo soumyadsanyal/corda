@@ -93,6 +93,8 @@ interface NodeConfiguration : ConfigurationWithOptionsContainer {
 
     val quasarExcludePackages: List<String>
 
+    val businessNetworks: BusinessNetworksConfig?
+
     companion object {
         // default to at least 8MB and a bit extra for larger heap sizes
         val defaultTransactionCacheSize: Long = 8.MB + getAdditionalCacheMemory()
@@ -136,8 +138,8 @@ data class DevModeOptions(
 }
 
 data class DJVMOptions(
-   val bootstrapSource: String?,
-   val cordaSource: List<String>
+        val bootstrapSource: String?,
+        val cordaSource: List<String>
 )
 
 fun NodeConfiguration.shouldCheckCheckpoints(): Boolean {
@@ -325,3 +327,5 @@ data class SecurityConfiguration(val authService: SecurityConfiguration.AuthServ
         }
     }
 }
+
+data class BusinessNetworksConfig(val serviceJar: Path, val serviceClass: String)
