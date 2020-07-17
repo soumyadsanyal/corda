@@ -172,7 +172,7 @@ interface ServiceHub : ServicesForResolution {
      */
     val transactionVerifierService: TransactionVerifierService
 
-    val businessNetworksService: BusinessNetworksService
+    val businessNetworksService: BusinessNetworksService?
 
     /**
      * A [Clock] representing the node's current time. This should be used in preference to directly accessing the

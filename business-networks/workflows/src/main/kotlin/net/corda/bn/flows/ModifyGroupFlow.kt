@@ -56,17 +56,17 @@ class ModifyGroupInternalFlow(
         }
 
         // fetch group state with groupId linear ID
-        val databaseService = serviceHub.cordaService(DatabaseService::class.java)
-        val group = databaseService.getBusinessNetworkGroup(groupId)
+        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
+        val group = service.getBusinessNetworkGroup(groupId)
                 ?: throw BusinessNetworkGroupNotFoundException("Business Network group with $groupId linear ID doesn't exist")
 
         // check whether party is authorised to initiate flow
         val networkId = group.state.data.networkId
-        authorise(networkId, databaseService) { it.canModifyGroups() }
+        authorise(networkId, service) { it.canModifyGroups() }
 
         // get all new participants' memberships from provided membership ids
         val participantsMemberships = participants?.map {
-            databaseService.getMembership(it)
+            service.getMembership(it)
                     ?: throw MembershipNotFoundException("Cannot find membership with $it linear ID")
         }
 
@@ -93,10 +93,10 @@ class ModifyGroupInternalFlow(
             )
         }
         val oldParticipantsMemberships = (group.state.data.participants - outputGroup.participants).map {
-            databaseService.getMembership(networkId, it)
+            service.getMembership(networkId, it)
                     ?: throw MembershipNotFoundException("Cannot find membership with $it linear ID")
         }.toSet()
-        val allGroups = databaseService.getAllBusinessNetworkGroups(networkId)
+        val allGroups = service.getAllBusinessNetworkGroups(networkId)
         val membersWithoutGroup = oldParticipantsMemberships.filter { membership ->
             membership.state.data.identity.cordaIdentity !in (allGroups - group).flatMap { it.state.data.participants }
         }
@@ -105,7 +105,7 @@ class ModifyGroupInternalFlow(
         }
 
         // fetch signers
-        val authorisedMemberships = databaseService.getMembersAuthorisedToModifyMembership(networkId)
+        val authorisedMemberships = service.getMembersAuthorisedToModifyMembership(networkId)
         val signers = authorisedMemberships.filter { it.state.data.isActive() }.map { it.state.data.identity.cordaIdentity }
 
         // building transaction
@@ -132,7 +132,7 @@ class ModifyGroupInternalFlow(
                     networkId,
                     oldParticipantsMemberships + (participantsMemberships ?: emptyList()),
                     signers,
-                    databaseService,
+                    service,
                     notary
             )
         }

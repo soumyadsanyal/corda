@@ -8,6 +8,7 @@ import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.AbstractParty
 import net.corda.core.node.services.bn.AdminPermission
 import net.corda.core.node.services.bn.BNRole
+import net.corda.core.node.services.bn.BusinessNetworkMembership
 import net.corda.core.node.services.bn.MembershipIdentity
 import net.corda.core.node.services.bn.MembershipStatus
 import net.corda.core.schemas.MappedSchema
@@ -36,6 +37,16 @@ data class MembershipState(
         override val participants: List<AbstractParty>
 ) : LinearState, QueryableState {
 
+    fun toBusinessNetworkMembership(): BusinessNetworkMembership = BusinessNetworkMembership(
+            identity = identity,
+            networkId = networkId,
+            status = status,
+            roles = roles,
+            issued = issued,
+            modified = modified,
+            membershipId = linearId
+    )
+
     override fun generateMappedObject(schema: MappedSchema) = when (schema) {
         is MembershipStateSchemaV1 -> MembershipStateSchemaV1.PersistentMembershipState(
                 cordaIdentity = identity.cordaIdentity,
@@ -46,41 +57,4 @@ data class MembershipState(
     }
 
     override fun supportedSchemas() = listOf(MembershipStateSchemaV1)
-
-    /** Indicates whether membership is in [MembershipStatus.PENDING] status. **/
-    fun isPending() = status == MembershipStatus.PENDING
-
-    /** Indicates whether membership is in [MembershipStatus.ACTIVE] status. **/
-    fun isActive() = status == MembershipStatus.ACTIVE
-
-    /** Indicates whether membership is in [MembershipStatus.SUSPENDED] status. **/
-    fun isSuspended() = status == MembershipStatus.SUSPENDED
-
-    /**
-     * Iterates through all roles yielding set of all permissions given to them.
-     *
-     * @return Set of all roles given to all [MembershipState.roles].
-     */
-    private fun permissions() = roles.flatMap { it.permissions }.toSet()
-
-    /** Indicates whether membership is authorised to activate memberships. **/
-    fun canActivateMembership() = AdminPermission.CAN_ACTIVATE_MEMBERSHIP in permissions()
-
-    /** Indicates whether membership is authorised to suspend memberships. **/
-    fun canSuspendMembership() = AdminPermission.CAN_SUSPEND_MEMBERSHIP in permissions()
-
-    /** Indicates whether membership is authorised to revoke memberships. **/
-    fun canRevokeMembership() = AdminPermission.CAN_REVOKE_MEMBERSHIP in permissions()
-
-    /** Indicates whether membership is authorised to modify memberships' roles. **/
-    fun canModifyRoles() = AdminPermission.CAN_MODIFY_ROLE in permissions()
-
-    /** Indicates whether membership is authorised to modify memberships' business identity. **/
-    fun canModifyBusinessIdentity() = AdminPermission.CAN_MODIFY_BUSINESS_IDENTITY in permissions()
-
-    /** Indicates whether membership is authorised to modify memberships' groups. **/
-    fun canModifyGroups() = AdminPermission.CAN_MODIFY_GROUPS in permissions()
-
-    /** Indicates whether membership has any administrative permission. **/
-    fun canModifyMembership() = permissions().any { it is AdminPermission }
 }

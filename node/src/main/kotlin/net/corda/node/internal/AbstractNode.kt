@@ -55,6 +55,7 @@ import net.corda.core.node.services.IdentityService
 import net.corda.core.node.services.KeyManagementService
 import net.corda.core.node.services.TransactionVerifierService
 import net.corda.core.node.services.bn.BusinessNetworksService
+import net.corda.core.node.services.bn.BusinessNetworksServiceInternal
 import net.corda.core.node.services.diagnostics.DiagnosticsService
 import net.corda.core.schemas.MappedSchema
 import net.corda.core.serialization.SerializationWhitelist
@@ -1178,7 +1179,8 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         override val diagnosticsService: DiagnosticsService get() = this@AbstractNode.diagnosticsService
         override val externalOperationExecutor: ExecutorService get() = this@AbstractNode.externalOperationExecutor
         override val notaryService: NotaryService? get() = this@AbstractNode.notaryService
-        override val businessNetworksService: BusinessNetworksService get() =
+        override val businessNetworksService: BusinessNetworksService? get() = this@AbstractNode.businessNetworksService
+        override val businessNetworksServiceInternal: BusinessNetworksServiceInternal? get() = this@AbstractNode.businessNetworksServiceInternal
 
         private lateinit var _myInfo: NodeInfo
         override val myInfo: NodeInfo get() = _myInfo

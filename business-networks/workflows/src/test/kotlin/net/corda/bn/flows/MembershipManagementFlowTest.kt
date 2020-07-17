@@ -168,7 +168,7 @@ abstract class MembershipManagementFlowTest(
     }
 
     private fun addMemberToInitialGroup(initiator: StartedMockNode, networkId: String, membership: MembershipState, notary: Party?) {
-        val databaseService = initiator.services.cordaService(DatabaseService::class.java)
+        val databaseService = initiator.services.cordaService(VaultBusinessNetworksService::class.java)
         val group = databaseService.getAllBusinessNetworkGroups(networkId).minBy { it.state.data.issued }?.state?.data
         assertNotNull(group)
 
@@ -182,7 +182,7 @@ abstract class MembershipManagementFlowTest(
     }
 
     protected fun getAllMembershipsFromVault(node: StartedMockNode, networkId: String): List<MembershipState> {
-        val databaseService = node.services.cordaService(DatabaseService::class.java)
+        val databaseService = node.services.cordaService(VaultBusinessNetworksService::class.java)
         return databaseService.getAllMembershipsWithStatus(
                 networkId,
                 MembershipStatus.PENDING, MembershipStatus.ACTIVE, MembershipStatus.SUSPENDED
@@ -192,7 +192,7 @@ abstract class MembershipManagementFlowTest(
     }
 
     protected fun getAllGroupsFromVault(node: StartedMockNode, networkId: String): List<GroupState> {
-        val databaseService = node.services.cordaService(DatabaseService::class.java)
+        val databaseService = node.services.cordaService(VaultBusinessNetworksService::class.java)
         return databaseService.getAllBusinessNetworkGroups(networkId).map { it.state.data }
     }
 }

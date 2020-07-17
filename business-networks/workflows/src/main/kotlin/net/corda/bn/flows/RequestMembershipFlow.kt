@@ -2,10 +2,7 @@ package net.corda.bn.flows
 
 import co.paralleluniverse.fibers.Suspendable
 import net.corda.bn.contracts.MembershipContract
-import net.corda.bn.states.BNIdentity
-import net.corda.bn.states.MembershipIdentity
 import net.corda.bn.states.MembershipState
-import net.corda.bn.states.MembershipStatus
 import net.corda.core.flows.CollectSignaturesFlow
 import net.corda.core.flows.FinalityFlow
 import net.corda.core.flows.FlowException
@@ -17,6 +14,9 @@ import net.corda.core.flows.ReceiveFinalityFlow
 import net.corda.core.flows.SignTransactionFlow
 import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
+import net.corda.core.node.services.bn.BNIdentity
+import net.corda.core.node.services.bn.MembershipIdentity
+import net.corda.core.node.services.bn.MembershipStatus
 import net.corda.core.serialization.CordaSerializable
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
@@ -46,8 +46,8 @@ class RequestMembershipFlow(
     @Suspendable
     override fun call(): SignedTransaction {
         // check whether the initiator is already member of given Business Network
-        val databaseService = serviceHub.cordaService(DatabaseService::class.java)
-        if (databaseService.getMembership(networkId, ourIdentity) != null) {
+        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
+        if (service.getMembership(networkId, ourIdentity) != null) {
             throw FlowException("Initiator is already a member of Business Network with $networkId ID")
         }
 
@@ -88,11 +88,11 @@ class RequestMembershipFlowResponder(private val session: FlowSession) : Members
         val (networkId, businessIdentity, notary) = session.receive<MembershipRequest>().unwrap { it }
 
         // check whether party is authorised to activate membership
-        val databaseService = serviceHub.cordaService(DatabaseService::class.java)
-        authorise(networkId, databaseService) { it.canActivateMembership() }
+        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
+        authorise(networkId, service) { it.canActivateMembership() }
 
         // fetch observers
-        val authorisedMemberships = databaseService.getMembersAuthorisedToModifyMembership(networkId)
+        val authorisedMemberships = service.getMembersAuthorisedToModifyMembership(networkId)
         val observers = (authorisedMemberships.map { it.state.data.identity.cordaIdentity } - ourIdentity).toSet()
 
         // build transaction

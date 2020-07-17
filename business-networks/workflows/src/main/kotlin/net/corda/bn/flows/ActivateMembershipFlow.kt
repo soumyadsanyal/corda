@@ -30,16 +30,16 @@ class ActivateMembershipFlow(private val membershipId: UniqueIdentifier, private
 
     @Suspendable
     override fun call(): SignedTransaction {
-        val databaseService = serviceHub.cordaService(DatabaseService::class.java)
-        val membership = databaseService.getMembership(membershipId)
-                ?: throw MembershipNotFoundException("Membership state with $membershipId linear ID doesn't exist")
+        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
+        val membership = service.getMembership(membershipId)
+                ?: throw MembershipNotFoundException("Membership with $membershipId membership ID doesn't exist")
 
         // check whether party is authorised to initiate flow
-        val networkId = membership.state.data.networkId
-        authorise(networkId, databaseService) { it.canActivateMembership() }
+        val networkId = membership.networkId
+        authorise(networkId, service) { it.canActivateMembership() }
 
         // fetch signers
-        val authorisedMemberships = databaseService.getMembersAuthorisedToModifyMembership(networkId).toSet()
+        val authorisedMemberships = service.getMembersAuthorisedToModifyMembership(networkId).toSet()
         val signers = authorisedMemberships.filter { it.state.data.isActive() }.map { it.state.data.identity.cordaIdentity }
 
         // building transaction

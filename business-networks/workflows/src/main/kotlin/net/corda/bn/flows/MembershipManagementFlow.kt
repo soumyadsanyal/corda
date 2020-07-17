@@ -15,6 +15,8 @@ import net.corda.core.flows.SendTransactionFlow
 import net.corda.core.flows.SignTransactionFlow
 import net.corda.core.identity.Party
 import net.corda.core.node.StatesToRecord
+import net.corda.core.node.services.bn.BusinessNetworkMembership
+import net.corda.core.node.services.bn.BusinessNetworksService
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.unwrap
@@ -28,20 +30,20 @@ abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
      * Performs authorisation checks of the flow initiator using provided authorisation methods.
      *
      * @param networkId ID of the Business Network in which we perform authorisation.
-     * @param databaseService Service used to query vault for memberships.
+     * @param service Service used to query vault for memberships.
      * @param authorisationMethod Method which does actual authorisation check over membership.
      */
     @Suppress("ThrowsCount")
     @Suspendable
-    protected fun authorise(networkId: String, databaseService: DatabaseService, authorisationMethod: (MembershipState) -> Boolean): StateAndRef<MembershipState> {
-        if (!databaseService.businessNetworkExists(networkId)) {
+    protected fun authorise(networkId: String, service: BusinessNetworksService, authorisationMethod: (BusinessNetworkMembership) -> Boolean): BusinessNetworkMembership {
+        if (!service.businessNetworkExists(networkId)) {
             throw BusinessNetworkNotFoundException("Business Network with $networkId doesn't exist")
         }
-        return databaseService.getMembership(networkId, ourIdentity)?.apply {
-            if (!state.data.isActive()) {
+        return service.getMembership(networkId, ourIdentity)?.apply {
+            if (!isActive()) {
                 throw IllegalMembershipStatusException("Membership owned by $ourIdentity is not active")
             }
-            if (!authorisationMethod(state.data)) {
+            if (!authorisationMethod(this)) {
                 throw MembershipAuthorisationException("$ourIdentity is not authorised to run $this")
             }
         } ?: throw MembershipNotFoundException("$ourIdentity is not member of a business network")
@@ -138,7 +140,7 @@ abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
      * @param networkId ID of the Business Network.
      * @param memberships Collection of memberships which participants are modified.
      * @param signers Parties that need to sign participant modification transaction.
-     * @param databaseService Service used to query vault for groups.
+     * @param service Service used to query vault for groups.
      * @param notary Identity of the notary to be used for transactions notarisation.
      */
     @Suspendable
@@ -146,10 +148,10 @@ abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
             networkId: String,
             memberships: Collection<StateAndRef<MembershipState>>,
             signers: List<Party>,
-            databaseService: DatabaseService,
+            service: BusinessNetworksService,
             notary: Party?
     ) {
-        val allGroups = databaseService.getAllBusinessNetworkGroups(networkId).map { it.state.data }
+        val allGroups = service.getAllBusinessNetworkGroups(networkId).map { it.state.data }
         memberships.forEach { membership ->
             val newParticipants = allGroups.filter {
                 membership.state.data.identity.cordaIdentity in it.participants
