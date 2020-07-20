@@ -328,4 +328,6 @@ data class SecurityConfiguration(val authService: SecurityConfiguration.AuthServ
     }
 }
 
-data class BusinessNetworksConfig(val serviceJar: Path, val serviceClass: String)
+data class BusinessNetworksConfig(val serviceType: BusinessNetworksServiceType, val serviceClass: String)
+
+enum class BusinessNetworksServiceType { VAULT }

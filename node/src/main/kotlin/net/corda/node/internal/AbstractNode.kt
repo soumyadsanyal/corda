@@ -61,6 +61,7 @@ import net.corda.core.schemas.MappedSchema
 import net.corda.core.serialization.SerializationWhitelist
 import net.corda.core.serialization.SerializeAsToken
 import net.corda.core.serialization.SingletonSerializeAsToken
+import net.corda.core.toFuture
 import net.corda.core.transactions.LedgerTransaction
 import net.corda.core.utilities.NetworkHostAndPort
 import net.corda.core.utilities.days
@@ -92,7 +93,7 @@ import net.corda.node.services.api.ServiceHubInternal
 import net.corda.node.services.api.VaultServiceInternal
 import net.corda.node.services.api.WritableTransactionStorage
 import net.corda.node.services.attachments.NodeAttachmentTrustCalculator
-import net.corda.node.services.bn.NodeBusinessNetworksService
+import net.corda.node.services.bn.BusinessNetworksServiceLoader
 import net.corda.node.services.bn.NodeBusinessNetworksServiceInternal
 import net.corda.node.services.config.NodeConfiguration
 import net.corda.node.services.config.configureWithDevSSLCertificate
@@ -323,7 +324,9 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
     val contractUpgradeService = ContractUpgradeServiceImpl(cacheFactory).tokenize()
     val auditService = DummyAuditService().tokenize()
 
-    val businessNetworksService = NodeBusinessNetworksService().tokenize()
+    val businessNetworksService = configuration.businessNetworks?.let {
+        BusinessNetworksServiceLoader(vaultService).load(cordappLoader.appClassLoader, it.serviceType, it.serviceClass).tokenize()
+    }
     val businessNetworksServiceInternal = NodeBusinessNetworksServiceInternal().tokenize()
 
     @Suppress("LeakingThis")
@@ -504,11 +507,6 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
 
         val nodeCa = configuration.signingCertificateStore.get()[CORDA_CLIENT_CA]
         identityService.start(trustRoot, listOf(identity.certificate, nodeCa), netParams.notaries.map { it.identity }, pkToIdCache)
-
-        configuration.businessNetworks?.let {
-            businessNetworksService.start(cordappLoader.appClassLoader, it.serviceClass)
-            businessNetworksServiceInternal.start(cordappLoader.appClassLoader, it.serviceClass)
-        }
 
         val (keyPairs, nodeInfoAndSigned, myNotaryIdentity) = database.transaction {
             updateNodeInfo(identity, identityKeyPair, publish = true)

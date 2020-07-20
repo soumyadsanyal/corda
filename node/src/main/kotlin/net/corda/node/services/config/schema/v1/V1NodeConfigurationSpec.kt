@@ -134,7 +134,8 @@ internal object V1NodeConfigurationSpec : Configuration.Specification<NodeConfig
                     networkParameterAcceptanceSettings = config[networkParameterAcceptanceSettings],
                     configurationWithOptions = ConfigurationWithOptions(configuration, Configuration.Options.defaults),
                     flowExternalOperationThreadPoolSize = config[flowExternalOperationThreadPoolSize],
-                    quasarExcludePackages = config[quasarExcludePackages]
+                    quasarExcludePackages = config[quasarExcludePackages],
+                    businessNetworks = config[businessNetworks]
             ))
         } catch (e: Exception) {
             return when (e) {
