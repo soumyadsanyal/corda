@@ -50,7 +50,6 @@ import net.corda.nodeapi.internal.persistence.SchemaInitializationType
 import net.corda.notary.experimental.bftsmart.BFTSmartConfig
 import net.corda.notary.experimental.raft.RaftConfig
 import net.corda.tools.shell.SSHDConfiguration
-import java.nio.file.Path
 
 internal object UserSpec : Configuration.Specification<User>("User") {
     private val username by string().optional()

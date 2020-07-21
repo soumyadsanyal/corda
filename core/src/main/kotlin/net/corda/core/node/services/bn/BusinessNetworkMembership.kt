@@ -1,6 +1,7 @@
 package net.corda.core.node.services.bn
 
 import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
 import net.corda.core.serialization.CordaSerializable
 import java.time.Instant
@@ -13,7 +14,8 @@ data class BusinessNetworkMembership(
         val roles: Set<BNRole> = emptySet(),
         val issued: Instant = Instant.now(),
         val modified: Instant = issued,
-        val membershipId: UniqueIdentifier
+        val membershipId: UniqueIdentifier,
+        val participants: List<AbstractParty>
 ) {
     /** Indicates whether membership is in [MembershipStatus.PENDING] status. **/
     fun isPending() = status == MembershipStatus.PENDING

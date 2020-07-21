@@ -12,7 +12,6 @@ import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.InitiatingFlow
 import net.corda.core.flows.ReceiveFinalityFlow
 import net.corda.core.flows.SignTransactionFlow
-import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
 import net.corda.core.node.services.bn.BNIdentity
 import net.corda.core.node.services.bn.MembershipIdentity
@@ -35,13 +34,12 @@ data class MembershipRequest(val networkId: String, val businessIdentity: BNIden
  * @property notary Identity of the notary to be used for transactions notarisation. If not specified, first one from the whitelist will be used.
  */
 @InitiatingFlow
-@StartableByRPC
 class RequestMembershipFlow(
         private val authorisedParty: Party,
         private val networkId: String,
         private val businessIdentity: BNIdentity? = null,
         private val notary: Party? = null
-) : FlowLogic<SignedTransaction>() {
+) : MembershipManagementFlowImpl<SignedTransaction>() {
 
     @Suspendable
     override fun call(): SignedTransaction {
@@ -80,7 +78,7 @@ class RequestMembershipFlow(
 
 @InitiatingFlow
 @InitiatedBy(RequestMembershipFlow::class)
-class RequestMembershipFlowResponder(private val session: FlowSession) : MembershipManagementFlow<Unit>() {
+class RequestMembershipFlowResponder(private val session: FlowSession) : MembershipManagementFlowImpl<Unit>() {
 
     @Suspendable
     override fun call() {
@@ -88,11 +86,12 @@ class RequestMembershipFlowResponder(private val session: FlowSession) : Members
         val (networkId, businessIdentity, notary) = session.receive<MembershipRequest>().unwrap { it }
 
         // check whether party is authorised to activate membership
-        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
-        authorise(networkId, service) { it.canActivateMembership() }
+        val storage = (serviceHub.businessNetworksService as? VaultBusinessNetworksService)?.membershipStorage
+                ?: throw FlowException("Business Network Service not initialised")
+        authorise(networkId, storage) { it.toBusinessNetworkMembership().canActivateMembership() }
 
         // fetch observers
-        val authorisedMemberships = service.getMembersAuthorisedToModifyMembership(networkId)
+        val authorisedMemberships = storage.getMembersAuthorisedToModifyMembership(networkId)
         val observers = (authorisedMemberships.map { it.state.data.identity.cordaIdentity } - ourIdentity).toSet()
 
         // build transaction

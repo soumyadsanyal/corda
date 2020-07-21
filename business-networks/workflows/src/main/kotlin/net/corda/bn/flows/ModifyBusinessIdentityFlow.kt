@@ -7,7 +7,6 @@ import net.corda.core.flows.FlowException
 import net.corda.core.flows.FlowSession
 import net.corda.core.flows.InitiatedBy
 import net.corda.core.flows.InitiatingFlow
-import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
 import net.corda.core.node.services.bn.BNIdentity
 import net.corda.core.transactions.SignedTransaction
@@ -23,27 +22,27 @@ import net.corda.core.transactions.TransactionBuilder
  * @property notary Identity of the notary to be used for transactions notarisation. If not specified, first one from the whitelist will be used.
  */
 @InitiatingFlow
-@StartableByRPC
 class ModifyBusinessIdentityFlow(
         private val membershipId: UniqueIdentifier,
         private val businessIdentity: BNIdentity,
         private val notary: Party? = null
-) : MembershipManagementFlow<SignedTransaction>() {
+) : MembershipManagementFlowImpl<SignedTransaction>() {
 
     @Suspendable
     override fun call(): SignedTransaction {
-        val service = serviceHub.businessNetworksService ?: throw FlowException("Business Network Service not initialised")
-        val membership = service.getMembership(membershipId)
+        val storage = (serviceHub.businessNetworksService as? VaultBusinessNetworksService)?.membershipStorage
+                ?: throw FlowException("Business Network Service not initialised")
+        val membership = storage.getMembership(membershipId)
                 ?: throw MembershipNotFoundException("Membership state with $membershipId linear ID doesn't exist")
 
         // check whether party is authorised to initiate flow
         val networkId = membership.state.data.networkId
-        authorise(networkId, service) { it.canModifyBusinessIdentity() }
+        authorise(networkId, storage) { it.toBusinessNetworkMembership().canModifyBusinessIdentity() }
 
         // fetch signers
-        val authorisedMemberships = service.getMembersAuthorisedToModifyMembership(networkId).toSet()
+        val authorisedMemberships = storage.getMembersAuthorisedToModifyMembership(networkId).toSet()
         val signers = authorisedMemberships.filter {
-            it.state.data.isActive()
+            it.state.data.toBusinessNetworkMembership().isActive()
         }.map {
             it.state.data.identity.cordaIdentity
         }.filterNot {
@@ -69,7 +68,7 @@ class ModifyBusinessIdentityFlow(
 }
 
 @InitiatedBy(ModifyBusinessIdentityFlow::class)
-class ModifyBusinessIdentityResponderFlow(private val session: FlowSession) : MembershipManagementFlow<Unit>() {
+class ModifyBusinessIdentityResponderFlow(private val session: FlowSession) : MembershipManagementFlowImpl<Unit>() {
 
     @Suspendable
     override fun call() {

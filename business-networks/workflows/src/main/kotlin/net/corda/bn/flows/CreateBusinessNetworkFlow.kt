@@ -9,9 +9,7 @@ import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.FinalityFlow
 import net.corda.core.flows.FlowException
-import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.InitiatingFlow
-import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
 import net.corda.core.node.services.bn.BNIdentity
 import net.corda.core.node.services.bn.BNORole
@@ -35,14 +33,13 @@ import net.corda.core.transactions.TransactionBuilder
  * @throws DuplicateBusinessNetworkGroupException If Business Network Group with [groupId] ID already exists.
  */
 @InitiatingFlow
-@StartableByRPC
 class CreateBusinessNetworkFlow(
         private val networkId: UniqueIdentifier = UniqueIdentifier(),
         private val businessIdentity: BNIdentity? = null,
         private val groupId: UniqueIdentifier = UniqueIdentifier(),
         private val groupName: String? = null,
         private val notary: Party? = null
-) : FlowLogic<SignedTransaction>() {
+) : MembershipManagementFlowImpl<SignedTransaction>() {
 
     /**
      * Issues pending membership (with new unique Business Network ID) on initiator's ledger.

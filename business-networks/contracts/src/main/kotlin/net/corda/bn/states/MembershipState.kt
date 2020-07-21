@@ -6,7 +6,6 @@ import net.corda.core.contracts.BelongsToContract
 import net.corda.core.contracts.LinearState
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.AbstractParty
-import net.corda.core.node.services.bn.AdminPermission
 import net.corda.core.node.services.bn.BNRole
 import net.corda.core.node.services.bn.BusinessNetworkMembership
 import net.corda.core.node.services.bn.MembershipIdentity
@@ -37,6 +36,21 @@ data class MembershipState(
         override val participants: List<AbstractParty>
 ) : LinearState, QueryableState {
 
+    companion object {
+        fun fromBusinessNetworkMembership(membership: BusinessNetworkMembership): MembershipState = membership.run {
+            MembershipState(
+                    identity = identity,
+                    networkId = networkId,
+                    status = status,
+                    roles = roles,
+                    issued = issued,
+                    modified = modified,
+                    linearId = membershipId,
+                    participants = participants
+            )
+        }
+    }
+
     fun toBusinessNetworkMembership(): BusinessNetworkMembership = BusinessNetworkMembership(
             identity = identity,
             networkId = networkId,
@@ -44,7 +58,8 @@ data class MembershipState(
             roles = roles,
             issued = issued,
             modified = modified,
-            membershipId = linearId
+            membershipId = linearId,
+            participants = participants
     )
 
     override fun generateMappedObject(schema: MappedSchema) = when (schema) {

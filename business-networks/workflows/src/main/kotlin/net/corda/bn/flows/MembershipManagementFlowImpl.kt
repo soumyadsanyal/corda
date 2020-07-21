@@ -7,16 +7,14 @@ import net.corda.core.contracts.StateAndRef
 import net.corda.core.flows.CollectSignaturesFlow
 import net.corda.core.flows.FinalityFlow
 import net.corda.core.flows.FlowException
-import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.FlowSession
 import net.corda.core.flows.ReceiveFinalityFlow
 import net.corda.core.flows.ReceiveTransactionFlow
 import net.corda.core.flows.SendTransactionFlow
 import net.corda.core.flows.SignTransactionFlow
+import net.corda.core.flows.bn.MembershipManagementFlow
 import net.corda.core.identity.Party
 import net.corda.core.node.StatesToRecord
-import net.corda.core.node.services.bn.BusinessNetworkMembership
-import net.corda.core.node.services.bn.BusinessNetworksService
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.unwrap
@@ -24,26 +22,26 @@ import net.corda.core.utilities.unwrap
 /**
  * This abstract class is extended by any flow which will use common membership management helper methods.
  */
-abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
+abstract class MembershipManagementFlowImpl<T> : MembershipManagementFlow<T>() {
 
     /**
      * Performs authorisation checks of the flow initiator using provided authorisation methods.
      *
      * @param networkId ID of the Business Network in which we perform authorisation.
-     * @param service Service used to query vault for memberships.
+     * @param storage Service used to query vault for memberships.
      * @param authorisationMethod Method which does actual authorisation check over membership.
      */
     @Suppress("ThrowsCount")
     @Suspendable
-    protected fun authorise(networkId: String, service: BusinessNetworksService, authorisationMethod: (BusinessNetworkMembership) -> Boolean): BusinessNetworkMembership {
-        if (!service.businessNetworkExists(networkId)) {
+    protected fun authorise(networkId: String, storage: MembershipStorage, authorisationMethod: (MembershipState) -> Boolean): StateAndRef<MembershipState> {
+        if (!storage.businessNetworkExists(networkId)) {
             throw BusinessNetworkNotFoundException("Business Network with $networkId doesn't exist")
         }
-        return service.getMembership(networkId, ourIdentity)?.apply {
-            if (!isActive()) {
+        return storage.getMembership(networkId, ourIdentity)?.apply {
+            if (!state.data.toBusinessNetworkMembership().isActive()) {
                 throw IllegalMembershipStatusException("Membership owned by $ourIdentity is not active")
             }
-            if (!authorisationMethod(this)) {
+            if (!authorisationMethod(state.data)) {
                 throw MembershipAuthorisationException("$ourIdentity is not authorised to run $this")
             }
         } ?: throw MembershipNotFoundException("$ourIdentity is not member of a business network")
@@ -140,7 +138,7 @@ abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
      * @param networkId ID of the Business Network.
      * @param memberships Collection of memberships which participants are modified.
      * @param signers Parties that need to sign participant modification transaction.
-     * @param service Service used to query vault for groups.
+     * @param storage Service used to query vault for groups.
      * @param notary Identity of the notary to be used for transactions notarisation.
      */
     @Suspendable
@@ -148,10 +146,10 @@ abstract class MembershipManagementFlow<T> : FlowLogic<T>() {
             networkId: String,
             memberships: Collection<StateAndRef<MembershipState>>,
             signers: List<Party>,
-            service: BusinessNetworksService,
+            storage: GroupStorage,
             notary: Party?
     ) {
-        val allGroups = service.getAllBusinessNetworkGroups(networkId).map { it.state.data }
+        val allGroups = storage.getAllBusinessNetworkGroups(networkId).map { it.state.data }
         memberships.forEach { membership ->
             val newParticipants = allGroups.filter {
                 membership.state.data.identity.cordaIdentity in it.participants
