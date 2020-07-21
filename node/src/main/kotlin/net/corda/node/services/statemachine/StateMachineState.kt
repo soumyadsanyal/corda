@@ -54,7 +54,8 @@ data class StateMachineState(
     val isRemoved: Boolean,
     @Volatile
     var isKilled: Boolean,
-    val senderUUID: String?
+    val senderUUID: String?,
+    val reloadCheckpointAfterSuspend: Boolean
 )
 
 /**

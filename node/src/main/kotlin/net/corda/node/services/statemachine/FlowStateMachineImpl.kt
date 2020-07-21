@@ -25,6 +25,7 @@ import net.corda.core.internal.DeclaredField
 import net.corda.core.internal.FlowIORequest
 import net.corda.core.internal.FlowStateMachine
 import net.corda.core.internal.IdempotentFlow
+import net.corda.core.internal.VisibleForTesting
 import net.corda.core.internal.concurrent.OpenFuture
 import net.corda.core.internal.isIdempotentFlow
 import net.corda.core.internal.isRegularFile
@@ -84,6 +85,9 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
         private val log: Logger = LoggerFactory.getLogger("net.corda.flow")
 
         private val SERIALIZER_BLOCKER = Fiber::class.java.getDeclaredField("SERIALIZER_BLOCKER").apply { isAccessible = true }.get(null)
+
+        @VisibleForTesting
+        var onReloadFlowFromCheckpoint: ((id: StateMachineRunId) -> Unit)? = null
     }
 
     override val serviceHub get() = getTransientField(TransientValues::serviceHub)
@@ -478,6 +482,7 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
     override fun <R : Any> suspend(ioRequest: FlowIORequest<R>, maySkipCheckpoint: Boolean): R {
         val serializationContext = TransientReference(getTransientField(TransientValues::checkpointSerializationContext))
         val transaction = extractThreadLocalTransaction()
+        val serviceHub = TransientReference(getTransientField(TransientValues::serviceHub))
         parkAndSerialize { _, _ ->
             setLoggingContext()
             logger.trace { "Suspended on $ioRequest" }
@@ -488,10 +493,11 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
             contextTransactionOrNull = transaction.value
             val event = try {
                 Event.Suspend(
-                        ioRequest = ioRequest,
-                        maySkipCheckpoint = skipPersistingCheckpoint,
-                        fiber = this.checkpointSerialize(context = serializationContext.value),
-                        progressStep = logic.progressTracker?.currentStep
+                    ioRequest = ioRequest,
+                    maySkipCheckpoint = skipPersistingCheckpoint,
+                    fiber = this.checkpointSerialize(context = serializationContext.value),
+                    progressStep = logic.progressTracker?.currentStep,
+                    reloadCheckpointAfterSuspend = serviceHub.value.configuration.reloadCheckpointAfterSuspend
                 )
             } catch (exception: Exception) {
                 Event.Error(exception)
@@ -513,6 +519,16 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
                 unpark(SERIALIZER_BLOCKER)
             }
         }
+
+        if (transientState!!.value.reloadCheckpointAfterSuspend) {
+            onReloadFlowFromCheckpoint?.invoke(id)
+            processEventImmediately(
+                Event.RetryFlowFromSafePoint,
+                isDbTransactionOpenOnEntry = false,
+                isDbTransactionOpenOnExit = false
+            )
+        }
+
         return uncheckedCast(processEventsUntilFlowIsResumed(
                 isDbTransactionOpenOnEntry = false,
                 isDbTransactionOpenOnExit = true
